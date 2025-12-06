@@ -458,9 +458,16 @@ class AnalysisThread(QThread):
             # Edge detection
             self.progress_update.emit("Detecting edges...")
             try:
-                edges = self.processor.detect_edges(image_array)
-                if edges is not None:
-                    results['edges'] = edges
+                # Check if opencv is available
+                try:
+                    import cv2
+                    edges = self.processor.detect_edges(image_array)
+                    if edges is not None:
+                        results['edges'] = edges
+                        logger.info("Edge detection completed successfully")
+                except ImportError:
+                    logger.warning("OpenCV not available for edge detection")
+                    results['edges'] = None
             except Exception as e:
                 logger.error(f"Edge detection failed: {str(e)}")
                 results['edges'] = None
@@ -478,9 +485,16 @@ class AnalysisThread(QThread):
             # OCR - Text extraction
             self.progress_update.emit("Extracting text from image...")
             try:
-                ocr_results = self.processor.extract_text_from_image(image_array)
-                if ocr_results:
-                    results['ocr'] = ocr_results
+                # Check if easyocr is available
+                try:
+                    import easyocr
+                    ocr_results = self.processor.extract_text_from_image(image_array)
+                    if ocr_results:
+                        results['ocr'] = ocr_results
+                        logger.info(f"OCR completed, found {len(ocr_results)} text regions")
+                except ImportError:
+                    logger.warning("EasyOCR not available for text extraction")
+                    results['ocr'] = None
             except Exception as e:
                 logger.error(f"OCR failed: {str(e)}")
                 results['ocr'] = None
@@ -1076,6 +1090,13 @@ class ImageAnalysisWindow(QMainWindow):
         
         features = self.current_results['ai_features']
         
+        # Import numpy dynamically
+        try:
+            import numpy as np_local
+        except ImportError:
+            self.show_no_data("NumPy not installed. Cannot display AI features.")
+            return
+        
         # Handle both dict and array types
         if isinstance(features, dict):
             info_text = "AI Feature Analysis:\n\n"
@@ -1108,15 +1129,18 @@ class ImageAnalysisWindow(QMainWindow):
         self.results_layout.addWidget(label)
         
         # Show feature statistics
-        stats_text = f"Statistics:\n"
-        stats_text += f"Min: {np.min(features):.6f}\n"
-        stats_text += f"Max: {np.max(features):.6f}\n"
-        stats_text += f"Mean: {np.mean(features):.6f}\n"
-        stats_text += f"Std: {np.std(features):.6f}"
-        
-        stats_label = QLabel(stats_text)
-        stats_label.setStyleSheet(label.styleSheet())
-        self.results_layout.addWidget(stats_label)
+        try:
+            stats_text = f"Statistics:\n"
+            stats_text += f"Min: {np_local.min(features):.6f}\n"
+            stats_text += f"Max: {np_local.max(features):.6f}\n"
+            stats_text += f"Mean: {np_local.mean(features):.6f}\n"
+            stats_text += f"Std: {np_local.std(features):.6f}"
+            
+            stats_label = QLabel(stats_text)
+            stats_label.setStyleSheet(label.styleSheet())
+            self.results_layout.addWidget(stats_label)
+        except Exception as e:
+            logger.error(f"Failed to compute feature statistics: {str(e)}")
     
     def show_edge_detection(self):
         """Show edge detection results"""
