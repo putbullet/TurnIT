@@ -66,7 +66,10 @@ class ImageProcessor:
     def load_image(self, image_path):
         """Load image from file"""
         if Image is None:
-            raise ImportError("PIL (Pillow) not installed. Please install: pip install pillow")
+            raise ImportError("Pillow (PIL) not installed. Please install: pip install pillow")
+        
+        if np is None:
+            raise ImportError("NumPy not installed. Please install: pip install numpy")
             
         try:
             # Load with PIL for compatibility
@@ -77,13 +80,14 @@ class ImageProcessor:
                 pil_image = pil_image.convert('RGB')
             
             # Convert to numpy array
-            if np is None:
-                raise ImportError("numpy not installed. Please install: pip install numpy")
             image_array = np.array(pil_image)
             
             logger.info(f"Image loaded: {image_path}, Shape: {image_array.shape}")
             return image_array, pil_image
             
+        except ImportError as e:
+            logger.error(f"Import error: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"Failed to load image {image_path}: {str(e)}")
             return None, None
@@ -294,12 +298,22 @@ class AnalysisThread(QThread):
     def run(self):
         """Run analysis in separate thread"""
         try:
+            # Check if Pillow is available
+            if Image is None:
+                self.error_occurred.emit("Pillow (PIL) not installed. Please install: pip install pillow")
+                return
+            
+            # Check if numpy is available
+            if np is None:
+                self.error_occurred.emit("NumPy not installed. Please install: pip install numpy")
+                return
+            
             self.progress_update.emit("Loading image...")
             
             # Load image
             image_array, pil_image = self.processor.load_image(self.image_path)
             if image_array is None:
-                self.error_occurred.emit("Failed to load image")
+                self.error_occurred.emit("Failed to load image. Please check the file format.")
                 return
             
             results = {
@@ -326,27 +340,50 @@ class AnalysisThread(QThread):
             
             # Edge detection
             self.progress_update.emit("Detecting edges...")
-            edges = self.processor.detect_edges(image_array)
-            if edges is not None:
-                results['edges'] = edges
+            try:
+                edges = self.processor.detect_edges(image_array)
+                if edges is not None:
+                    results['edges'] = edges
+            except Exception as e:
+                logger.error(f"Edge detection failed: {str(e)}")
+                results['edges'] = None
             
             # Histogram
             self.progress_update.emit("Creating histogram...")
-            histogram_fig = self.processor.create_histogram(image_array)
-            if histogram_fig is not None:
-                results['histogram'] = histogram_fig
+            try:
+                histogram_fig = self.processor.create_histogram(image_array)
+                if histogram_fig is not None:
+                    results['histogram'] = histogram_fig
+            except Exception as e:
+                logger.error(f"Histogram creation failed: {str(e)}")
+                results['histogram'] = None
             
             # OCR - Text extraction
             self.progress_update.emit("Extracting text from image...")
-            ocr_results = self.processor.extract_text_from_image(image_array)
-            if ocr_results:
-                results['ocr'] = ocr_results
+            try:
+                ocr_results = self.processor.extract_text_from_image(image_array)
+                if ocr_results:
+                    results['ocr'] = ocr_results
+            except Exception as e:
+                logger.error(f"OCR failed: {str(e)}")
+                results['ocr'] = None
             
             self.progress_update.emit("Analysis complete")
             self.analysis_complete.emit(results)
             
+        except ImportError as e:
+            error_msg = str(e)
+            if "pillow" in error_msg.lower() or "PIL" in error_msg:
+                self.error_occurred.emit("Pillow (PIL) not installed. Please install: pip install pillow")
+            elif "numpy" in error_msg.lower():
+                self.error_occurred.emit("NumPy not installed. Please install: pip install numpy")
+            elif "cv2" in error_msg.lower() or "opencv" in error_msg.lower():
+                self.error_occurred.emit("OpenCV not installed. Please install: pip install opencv-python")
+            else:
+                self.error_occurred.emit(f"Missing dependency: {error_msg}")
         except Exception as e:
-            self.error_occurred.emit(str(e))
+            logger.error(f"Analysis error: {str(e)}")
+            self.error_occurred.emit(f"Analysis failed: {str(e)}")
 
 class ImageAnalysisWindow(QMainWindow):
     """Image Analysis interface"""
