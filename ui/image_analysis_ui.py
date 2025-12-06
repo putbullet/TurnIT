@@ -95,28 +95,40 @@ class ImageProcessor:
     def extract_basic_features(self, image_array):
         """Extract basic image features"""
         try:
+            # Dynamic imports
+            import numpy as np_local
+            try:
+                import cv2 as cv2_local
+            except ImportError:
+                cv2_local = None
+                
             height, width = image_array.shape[:2]
             channels = image_array.shape[2] if len(image_array.shape) == 3 else 1
             
             # Color statistics
             if channels == 3:
-                mean_rgb = np.mean(image_array, axis=(0, 1))
-                std_rgb = np.std(image_array, axis=(0, 1))
+                mean_rgb = np_local.mean(image_array, axis=(0, 1))
+                std_rgb = np_local.std(image_array, axis=(0, 1))
                 
                 # Dominant colors (simplified)
                 reshaped = image_array.reshape(-1, 3)
-                unique_colors = np.unique(reshaped, axis=0)
+                unique_colors = np_local.unique(reshaped, axis=0)
                 
                 # Brightness and contrast
-                gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
-                brightness = np.mean(gray)
-                contrast = np.std(gray)
+                if cv2_local:
+                    gray = cv2_local.cvtColor(image_array, cv2_local.COLOR_RGB2GRAY)
+                    brightness = np_local.mean(gray)
+                    contrast = np_local.std(gray)
+                else:
+                    # Fallback: use simple average
+                    brightness = np_local.mean(image_array)
+                    contrast = np_local.std(image_array)
             else:
-                mean_rgb = [np.mean(image_array)]
-                std_rgb = [np.std(image_array)]
-                brightness = np.mean(image_array)
-                contrast = np.std(image_array)
-                unique_colors = np.unique(image_array)
+                mean_rgb = [np_local.mean(image_array)]
+                std_rgb = [np_local.std(image_array)]
+                brightness = np_local.mean(image_array)
+                contrast = np_local.std(image_array)
+                unique_colors = np_local.unique(image_array)
             
             features = {
                 'dimensions': {'width': int(width), 'height': int(height), 'channels': int(channels)},
@@ -139,20 +151,27 @@ class ImageProcessor:
     def detect_edges(self, image_array, low_threshold=50, high_threshold=150):
         """Detect edges using Canny edge detection"""
         try:
+            # Dynamic import
+            import cv2 as cv2_local
+            
             # Convert to grayscale
             if len(image_array.shape) == 3:
-                gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+                gray = cv2_local.cvtColor(image_array, cv2_local.COLOR_RGB2GRAY)
             else:
                 gray = image_array
             
             # Apply Gaussian blur
-            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            blurred = cv2_local.GaussianBlur(gray, (5, 5), 0)
             
             # Canny edge detection
-            edges = cv2.Canny(blurred, low_threshold, high_threshold)
+            edges = cv2_local.Canny(blurred, low_threshold, high_threshold)
             
+            logger.info("Edge detection completed successfully")
             return edges
             
+        except ImportError as e:
+            logger.error(f"OpenCV not available: {str(e)}")
+            return None
         except Exception as e:
             logger.error(f"Edge detection failed: {str(e)}")
             return None
@@ -160,14 +179,18 @@ class ImageProcessor:
     def create_histogram(self, image_array):
         """Create color histogram"""
         try:
+            # Dynamic imports
+            import cv2 as cv2_local
+            import matplotlib.pyplot as plt_local
+            
             if len(image_array.shape) == 3:
                 # RGB histogram
                 colors = ['red', 'green', 'blue']
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+                fig, (ax1, ax2) = plt_local.subplots(1, 2, figsize=(12, 4))
                 
                 # Individual channel histograms
                 for i, color in enumerate(colors):
-                    hist = cv2.calcHist([image_array], [i], None, [256], [0, 256])
+                    hist = cv2_local.calcHist([image_array], [i], None, [256], [0, 256])
                     ax1.plot(hist, color=color, alpha=0.7, linewidth=2)
                 
                 ax1.set_title('RGB Channel Histograms')
@@ -177,8 +200,8 @@ class ImageProcessor:
                 ax1.grid(True, alpha=0.3)
                 
                 # Combined grayscale histogram
-                gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
-                hist_gray = cv2.calcHist([gray], [0], None, [256], [0, 256])
+                gray = cv2_local.cvtColor(image_array, cv2_local.COLOR_RGB2GRAY)
+                hist_gray = cv2_local.calcHist([gray], [0], None, [256], [0, 256])
                 ax2.plot(hist_gray, color='gray', linewidth=2)
                 ax2.set_title('Grayscale Histogram')
                 ax2.set_xlabel('Pixel Intensity')
@@ -187,17 +210,21 @@ class ImageProcessor:
                 
             else:
                 # Grayscale histogram only
-                fig, ax = plt.subplots(1, 1, figsize=(8, 4))
-                hist = cv2.calcHist([image_array], [0], None, [256], [0, 256])
+                fig, ax = plt_local.subplots(1, 1, figsize=(8, 4))
+                hist = cv2_local.calcHist([image_array], [0], None, [256], [0, 256])
                 ax.plot(hist, color='gray', linewidth=2)
                 ax.set_title('Grayscale Histogram')
                 ax.set_xlabel('Pixel Intensity')
                 ax.set_ylabel('Frequency')
                 ax.grid(True, alpha=0.3)
             
-            plt.tight_layout()
+            plt_local.tight_layout()
+            logger.info("Histogram created successfully")
             return fig
             
+        except ImportError as e:
+            logger.error(f"Missing dependencies for histogram: {str(e)}")
+            return None
         except Exception as e:
             logger.error(f"Histogram creation failed: {str(e)}")
             return None
@@ -208,39 +235,81 @@ class ImageProcessor:
             ocr_results = {}
             
             # Try EasyOCR first (more modern)
-            if easyocr is not None:
-                try:
-                    reader = easyocr.Reader(['en'])
-                    results = reader.readtext(image_array)
+            try:
+                import easyocr as easyocr_local
+                
+                logger.info("Initializing EasyOCR...")
+                reader = easyocr_local.Reader(['en'], gpu=False)
+                results = reader.readtext(image_array)
+                
+                extracted_text = []
+                confidence_scores = []
+                bounding_boxes = []
+                
+                for (bbox, text, confidence) in results:
+                    if confidence > 0.5:  # Filter low-confidence detections
+                        extracted_text.append(text)
+                        confidence_scores.append(float(confidence))
+                        bounding_boxes.append([[float(p[0]), float(p[1])] for p in bbox])
+                
+                ocr_results['method'] = 'easyocr'
+                ocr_results['text'] = ' '.join(extracted_text)
+                ocr_results['individual_texts'] = extracted_text
+                ocr_results['confidences'] = confidence_scores
+                ocr_results['bounding_boxes'] = bounding_boxes
+                ocr_results['total_words'] = len(extracted_text)
+                
+                logger.info(f"EasyOCR extracted {len(extracted_text)} text regions")
+                return ocr_results
                     
-                    extracted_text = []
-                    confidence_scores = []
-                    bounding_boxes = []
-                    
-                    for (bbox, text, confidence) in results:
-                        if confidence > 0.5:  # Filter low-confidence detections
-                            extracted_text.append(text)
-                            confidence_scores.append(confidence)
-                            bounding_boxes.append(bbox)
-                    
-                    ocr_results['easyocr'] = {
-                        'text': ' '.join(extracted_text),
-                        'individual_texts': extracted_text,
-                        'confidences': confidence_scores,
-                        'bounding_boxes': bounding_boxes,
-                        'total_words': len(extracted_text)
-                    }
-                    
-                except Exception as e:
-                    logger.warning(f"EasyOCR failed: {str(e)}")
-                    ocr_results['easyocr'] = {'text': '', 'error': str(e)}
+            except ImportError:
+                logger.warning("EasyOCR not installed")
+            except Exception as e:
+                logger.warning(f"EasyOCR failed: {str(e)}")
             
             # Try Tesseract as backup
-            if pytesseract is not None:
-                try:
-                    # Convert numpy array to PIL Image for tesseract
-                    if Image is not None:
-                        pil_image = Image.fromarray(image_array)
+            try:
+                import pytesseract as pytesseract_local
+                from PIL import Image as PIL_Image
+                
+                logger.info("Trying Tesseract OCR...")
+                pil_image = PIL_Image.fromarray(image_array)
+                text = pytesseract_local.image_to_string(pil_image)
+                
+                # Get detailed data
+                data = pytesseract_local.image_to_data(pil_image, output_type=pytesseract_local.Output.DICT)
+                
+                # Filter confident text
+                confident_words = []
+                confidences = []
+                for i, conf in enumerate(data['conf']):
+                    if int(conf) > 50:  # Filter low confidence
+                        word = data['text'][i].strip()
+                        if word:
+                            confident_words.append(word)
+                            confidences.append(int(conf) / 100.0)
+                
+                ocr_results['method'] = 'tesseract'
+                ocr_results['text'] = text.strip()
+                ocr_results['individual_words'] = confident_words
+                ocr_results['confidences'] = confidences
+                ocr_results['total_words'] = len(confident_words)
+                
+                logger.info(f"Tesseract extracted {len(confident_words)} words")
+                return ocr_results
+                
+            except ImportError:
+                logger.error("Tesseract not installed")
+            except Exception as e:
+                logger.error(f"Tesseract failed: {str(e)}")
+            
+            # No OCR available
+            logger.warning("No OCR engine available")
+            return None
+            
+        except Exception as e:
+            logger.error(f"OCR extraction failed: {str(e)}")
+            return None
                         text = pytesseract.image_to_string(pil_image)
                         
                         # Get detailed data
@@ -1198,19 +1267,25 @@ class ImageAnalysisWindow(QMainWindow):
     
     def show_color_analysis(self):
         """Show color analysis results"""
-        if 'histogram' not in self.current_results:
-            self.show_no_data("Color analysis not available")
+        if 'histogram' not in self.current_results or self.current_results['histogram'] is None:
+            self.show_no_data("Color analysis not available.\nInstall matplotlib and opencv-python to enable this feature.")
             return
         
         # Display histogram
-        canvas = FigureCanvas(self.current_results['histogram'])
-        canvas.setStyleSheet("background: #2a2a2a;")
-        self.results_layout.addWidget(canvas)
+        try:
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas_local
+            canvas = FigureCanvas_local(self.current_results['histogram'])
+            canvas.setStyleSheet("background: #2a2a2a;")
+            self.results_layout.addWidget(canvas)
+        except ImportError:
+            self.show_no_data("matplotlib not installed.\nInstall with: pip install matplotlib")
+        except Exception as e:
+            self.show_no_data(f"Failed to display histogram: {str(e)}")
     
     def show_ocr_results(self):
         """Show OCR (Text Extraction) results"""
-        if 'ocr' not in self.current_results:
-            self.show_no_data("Text extraction not available")
+        if 'ocr' not in self.current_results or self.current_results['ocr'] is None:
+            self.show_no_data("Text extraction not available.\nInstall easyocr to enable this feature:\npip install easyocr")
             return
         
         ocr_data = self.current_results['ocr']
@@ -1244,11 +1319,25 @@ class ImageAnalysisWindow(QMainWindow):
         """)
         content_layout.addWidget(title_label)
         
-        # Combined text result
-        combined_text = ocr_data.get('combined', {}).get('text', '')
-        has_text = ocr_data.get('combined', {}).get('has_text', False)
+        # Get extracted text
+        combined_text = ocr_data.get('text', '')
+        method = ocr_data.get('method', 'unknown')
+        total_words = ocr_data.get('total_words', 0)
         
-        if has_text and combined_text.strip():
+        # OCR method info
+        method_label = QLabel(f"📊 OCR Method: {method.upper()} | Total Words: {total_words}")
+        method_label.setStyleSheet("""
+            QLabel {
+                color: #7b68ee;
+                font-size: 14px;
+                padding: 8px;
+                background: #1a1a1a;
+                border-radius: 5px;
+            }
+        """)
+        content_layout.addWidget(method_label)
+        
+        if combined_text and combined_text.strip():
             # Text found
             text_group = QGroupBox("✅ Extracted Text")
             text_group.setStyleSheet("""
@@ -1273,7 +1362,7 @@ class ImageAnalysisWindow(QMainWindow):
             text_display = QTextEdit()
             text_display.setPlainText(combined_text)
             text_display.setReadOnly(True)
-            text_display.setMaximumHeight(200)
+            text_display.setMinimumHeight(150)
             text_display.setStyleSheet("""
                 QTextEdit {
                     background: #1a1a1a;
@@ -1289,7 +1378,7 @@ class ImageAnalysisWindow(QMainWindow):
             text_layout.addWidget(text_display)
             
             # Word count
-            word_count = len(combined_text.split())
+            word_count = total_words if total_words else len(combined_text.split())
             char_count = len(combined_text)
             stats_label = QLabel(f"📊 Words: {word_count} | Characters: {char_count}")
             stats_label.setStyleSheet("""
@@ -1300,6 +1389,22 @@ class ImageAnalysisWindow(QMainWindow):
                 }
             """)
             text_layout.addWidget(stats_label)
+            
+            # Show confidence scores if available
+            if 'confidences' in ocr_data and ocr_data['confidences']:
+                import numpy as np_conf
+                confidences = ocr_data['confidences']
+                avg_conf = np_conf.mean(confidences) * 100
+                conf_label = QLabel(f"🎯 Average Confidence: {avg_conf:.1f}%")
+                conf_label.setStyleSheet("""
+                    QLabel {
+                        color: #00ff00;
+                        font-size: 12px;
+                        padding: 5px;
+                        font-weight: bold;
+                    }
+                """)
+                text_layout.addWidget(conf_label)
             
             content_layout.addWidget(text_group)
         else:
@@ -1320,58 +1425,38 @@ class ImageAnalysisWindow(QMainWindow):
             """)
             content_layout.addWidget(no_text_label)
         
-        # OCR Engine Details
-        details_group = QGroupBox("🔍 OCR Engine Details")
-        details_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #404040;
-                border-radius: 10px;
-                margin: 10px 0;
-                padding-top: 15px;
-                color: #e0e0e0;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        
-        details_layout = QVBoxLayout(details_group)
-        
-        # Engine results
-        for engine_name, engine_data in ocr_data.items():
-            if engine_name == 'combined':
-                continue
-                
-            engine_label = QLabel(f"🔧 {engine_name.title()} Engine:")
-            engine_label.setStyleSheet("QLabel { color: #00d4ff; font-weight: bold; }")
-            details_layout.addWidget(engine_label)
+        # Individual words/texts if available
+        if 'individual_texts' in ocr_data and ocr_data['individual_texts']:
+            words_group = QGroupBox("📝 Detected Text Regions")
+            words_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    border: 2px solid #404040;
+                    border-radius: 10px;
+                    margin: 10px 0;
+                    padding-top: 15px;
+                    color: #e0e0e0;
+                }
+            """)
             
-            if 'error' in engine_data:
-                error_label = QLabel(f"   ❌ Error: {engine_data['error']}")
-                error_label.setStyleSheet("QLabel { color: #ff6b6b; margin-left: 20px; }")
-                details_layout.addWidget(error_label)
-            else:
-                text_found = engine_data.get('text', '').strip()
-                if text_found:
-                    success_label = QLabel(f"   ✅ Extracted {len(text_found.split())} words")
-                    success_label.setStyleSheet("QLabel { color: #00ff00; margin-left: 20px; }")
-                    details_layout.addWidget(success_label)
-                    
-                    # Show confidence if available (EasyOCR)
-                    if 'confidences' in engine_data and engine_data['confidences']:
-                        avg_confidence = sum(engine_data['confidences']) / len(engine_data['confidences'])
-                        conf_label = QLabel(f"   📊 Average Confidence: {avg_confidence:.2%}")
-                        conf_label.setStyleSheet("QLabel { color: #a0a0a0; margin-left: 20px; }")
-                        details_layout.addWidget(conf_label)
+            words_layout = QVBoxLayout(words_group)
+            
+            for i, text in enumerate(ocr_data['individual_texts'][:20]):  # Show first 20
+                conf = ocr_data.get('confidences', [])[i] if i < len(ocr_data.get('confidences', [])) else None
+                if conf:
+                    word_label = QLabel(f"{i+1}. {text} ({conf*100:.1f}%)")
                 else:
-                    no_text_label = QLabel(f"   ℹ️  No text detected")
-                    no_text_label.setStyleSheet("QLabel { color: #a0a0a0; margin-left: 20px; }")
-                    details_layout.addWidget(no_text_label)
+                    word_label = QLabel(f"{i+1}. {text}")
+                word_label.setStyleSheet("QLabel { color: #e0e0e0; padding: 3px; }")
+                words_layout.addWidget(word_label)
+            
+            if len(ocr_data['individual_texts']) > 20:
+                more_label = QLabel(f"... and {len(ocr_data['individual_texts']) - 20} more")
+                more_label.setStyleSheet("QLabel { color: #808080; padding: 5px; font-style: italic; }")
+                words_layout.addWidget(more_label)
+            
+            content_layout.addWidget(words_group)
         
-        content_layout.addWidget(details_group)
         content_layout.addStretch()
         
         scroll.setWidget(content_widget)
