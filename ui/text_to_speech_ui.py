@@ -836,7 +836,34 @@ class TextToSpeechWindow(QMainWindow):
         
         # Check if pygame is available
         if not self.tts_engine.pygame_available:
-            self.show_error("Audio playback not available. Please install pygame: pip install pygame")
+            # Try to install pygame automatically
+            reply = QMessageBox.question(
+                self,
+                "Install pygame?",
+                "pygame is required for audio playback.\n\nDo you want to install it now?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                self.status_label.setText("Installing pygame...")
+                self.status_label.setStyleSheet("QLabel { color: #ffa500; }")
+                
+                import subprocess
+                try:
+                    subprocess.check_call(
+                        [sys.executable, "-m", "pip", "install", "pygame"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    self.status_label.setText("pygame installed! Please restart TurnIT.")
+                    self.status_label.setStyleSheet("QLabel { color: #00ff00; }")
+                    QMessageBox.information(
+                        self,
+                        "Installation Complete",
+                        "pygame has been installed successfully.\n\nPlease close and reopen TurnIT to use audio playback."
+                    )
+                except Exception as e:
+                    self.show_error(f"Failed to install pygame automatically.\n\nPlease install manually: pip install pygame\n\nError: {str(e)}")
             return
         
         if self.tts_engine.is_playing():

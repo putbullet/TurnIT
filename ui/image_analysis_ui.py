@@ -300,13 +300,44 @@ class AnalysisThread(QThread):
         try:
             # Check if Pillow is available
             if Image is None:
-                self.error_occurred.emit("Pillow (PIL) not installed. Please install: pip install pillow")
-                return
+                self.error_occurred.emit("Pillow (PIL) not installed. Installing now...")
+                self.progress_update.emit("Installing Pillow...")
+                
+                # Try to install Pillow automatically
+                import subprocess
+                import sys
+                try:
+                    subprocess.check_call(
+                        [sys.executable, "-m", "pip", "install", "pillow"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    self.progress_update.emit("Pillow installed! Please restart the application.")
+                    self.error_occurred.emit("Pillow installed successfully. Please close and reopen TurnIT to use image analysis.")
+                    return
+                except Exception as e:
+                    self.error_occurred.emit(f"Failed to install Pillow automatically. Please install manually: pip install pillow\n\nError: {str(e)}")
+                    return
             
             # Check if numpy is available
             if np is None:
-                self.error_occurred.emit("NumPy not installed. Please install: pip install numpy")
-                return
+                self.error_occurred.emit("NumPy not installed. Installing now...")
+                self.progress_update.emit("Installing NumPy...")
+                
+                import subprocess
+                import sys
+                try:
+                    subprocess.check_call(
+                        [sys.executable, "-m", "pip", "install", "numpy"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    self.progress_update.emit("NumPy installed! Please restart the application.")
+                    self.error_occurred.emit("NumPy installed successfully. Please close and reopen TurnIT to use image analysis.")
+                    return
+                except Exception as e:
+                    self.error_occurred.emit(f"Failed to install NumPy automatically. Please install manually: pip install numpy\n\nError: {str(e)}")
+                    return
             
             self.progress_update.emit("Loading image...")
             
