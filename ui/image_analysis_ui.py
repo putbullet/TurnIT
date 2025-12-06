@@ -298,29 +298,43 @@ class AnalysisThread(QThread):
     def run(self):
         """Run analysis in separate thread"""
         try:
-            # Check if Pillow is available
-            if Image is None:
+            # Dynamically check and import required packages
+            PIL_Image = None
+            np_module = None
+            
+            # Try to import PIL/Pillow
+            try:
+                from PIL import Image as PIL_Image
+            except ImportError:
                 self.error_occurred.emit("Pillow (PIL) not installed. Installing now...")
                 self.progress_update.emit("Installing Pillow...")
                 
-                # Try to install Pillow automatically
                 import subprocess
                 import sys
                 try:
                     subprocess.check_call(
                         [sys.executable, "-m", "pip", "install", "pillow"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
                     )
-                    self.progress_update.emit("Pillow installed! Please restart the application.")
-                    self.error_occurred.emit("Pillow installed successfully. Please close and reopen TurnIT to use image analysis.")
-                    return
+                    self.progress_update.emit("Pillow installed! Importing...")
+                    
+                    # Try importing again after installation
+                    try:
+                        from PIL import Image as PIL_Image
+                        self.progress_update.emit("Pillow loaded successfully!")
+                    except ImportError:
+                        self.error_occurred.emit("Pillow installed but import failed. Please restart TurnIT.")
+                        return
+                        
                 except Exception as e:
-                    self.error_occurred.emit(f"Failed to install Pillow automatically. Please install manually: pip install pillow\n\nError: {str(e)}")
+                    self.error_occurred.emit(f"Failed to install Pillow: {str(e)}\n\nPlease install manually: pip install pillow")
                     return
             
-            # Check if numpy is available
-            if np is None:
+            # Try to import numpy
+            try:
+                import numpy as np_module
+            except ImportError:
                 self.error_occurred.emit("NumPy not installed. Installing now...")
                 self.progress_update.emit("Installing NumPy...")
                 
@@ -329,20 +343,55 @@ class AnalysisThread(QThread):
                 try:
                     subprocess.check_call(
                         [sys.executable, "-m", "pip", "install", "numpy"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
                     )
-                    self.progress_update.emit("NumPy installed! Please restart the application.")
-                    self.error_occurred.emit("NumPy installed successfully. Please close and reopen TurnIT to use image analysis.")
-                    return
+                    self.progress_update.emit("NumPy installed! Importing...")
+                    
+                    # Try importing again after installation
+                    try:
+                        import numpy as np_module
+                        self.progress_update.emit("NumPy loaded successfully!")
+                    except ImportError:
+                        self.error_occurred.emit("NumPy installed but import failed. Please restart TurnIT.")
+                        return
+                        
                 except Exception as e:
-                    self.error_occurred.emit(f"Failed to install NumPy automatically. Please install manually: pip install numpy\n\nError: {str(e)}")
+                    self.error_occurred.emit(f"Failed to install NumPy: {str(e)}\n\nPlease install manually: pip install numpy")
                     return
+            
+            # Update the processor to use the imported modules
+            if PIL_Image:
+                import types
+                processor_module = types.ModuleType('temp_processor')
+                processor_module.Image = PIL_Image
+                processor_module.np = np_module
+                # Temporarily patch the processor
+                original_load = self.processor.load_image
+                
+                def patched_load(image_path):
+                    try:
+                        pil_image = PIL_Image.open(image_path)
+                        if pil_image.mode != 'RGB':
+                            pil_image = pil_image.convert('RGB')
+                        image_array = np_module.array(pil_image)
+                        logger.info(f"Image loaded: {image_path}, Shape: {image_array.shape}")
+                        return image_array, pil_image
+                    except Exception as e:
+                        logger.error(f"Failed to load image {image_path}: {str(e)}")
+                        return None, None
+                
+                self.processor.load_image = patched_load
             
             self.progress_update.emit("Loading image...")
             
-            # Load image
-            image_array, pil_image = self.processor.load_image(self.image_path)
+            # Load image using the patched or original load method
+            try:
+                image_array, pil_image = self.processor.load_image(self.image_path)
+            except Exception as e:
+                self.error_occurred.emit(f"Failed to load image: {str(e)}")
+                return
+                
             if image_array is None:
                 self.error_occurred.emit("Failed to load image. Please check the file format.")
                 return
@@ -355,9 +404,46 @@ class AnalysisThread(QThread):
             
             # Basic features
             self.progress_update.emit("Extracting basic features...")
-            basic_features = self.processor.extract_basic_features(image_array)
-            if basic_features:
-                results['basic_features'] = basic_features
+            try:
+                # Patch numpy in extract_basic_features if needed
+                if np_module:
+                    original_extract = self.processor.extract_basic_features
+                    def patched_extract(img_array):
+                        try:
+                            height, width = img_array.shape[:2]
+                            channels = img_array.shape[2] if len(img_array.shape) == 3 else 1
+                            
+                            features = {
+                                'dimensions': {
+                                    'width': int(width),
+                                    'height': int(height),
+                                    'channels': int(channels),
+                                    'total_pixels': int(height * width)
+                                }
+                            }
+                            
+                            if channels == 3:
+                                mean_rgb = np_module.mean(img_array, axis=(0, 1))
+                                features['color_stats'] = {
+                                    'mean_red': float(mean_rgb[0]),
+                                    'mean_green': float(mean_rgb[1]),
+                                    'mean_blue': float(mean_rgb[2])
+                                }
+                            
+                            return features
+                        except Exception as e:
+                            logger.error(f"Feature extraction error: {str(e)}")
+                            return None
+                    
+                    basic_features = patched_extract(image_array)
+                else:
+                    basic_features = self.processor.extract_basic_features(image_array)
+                    
+                if basic_features:
+                    results['basic_features'] = basic_features
+            except Exception as e:
+                logger.error(f"Basic features extraction failed: {str(e)}")
+                results['basic_features'] = None
             
             # AI-based feature extraction
             if self.models_manager:
