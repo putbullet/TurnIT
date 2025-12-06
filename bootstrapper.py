@@ -325,7 +325,7 @@ def install_git():
 
 def clone_repository(install_dir):
     """Clone the GitHub repository."""
-    print_step(f"Cloning repository to: {install_dir}")
+    print_step(f"Setting up repository at: {install_dir}")
     
     # Check if directory already exists
     if os.path.exists(install_dir):
@@ -335,7 +335,8 @@ def clone_repository(install_dir):
             # Check if it's a git repository
             git_dir = os.path.join(install_dir, '.git')
             if os.path.exists(git_dir):
-                print_success("Repository is already cloned. Skipping clone step.")
+                print_success("Repository is already cloned.")
+                print_info("Will check for updates after dependencies are installed.")
                 return True
             else:
                 print_info("Directory exists but is not a git repository.")
@@ -370,37 +371,68 @@ def clone_repository(install_dir):
 
 def update_repository(install_dir):
     """Update the repository if it already exists."""
-    print_step("Checking for updates...")
+    print_step("Checking for updates from GitHub...")
     
     git_dir = os.path.join(install_dir, '.git')
     if not os.path.exists(git_dir):
-        print_info("Not a git repository. Skipping update.")
+        print_info("Not a git repository. Skipping update check.")
         return True
     
     try:
         original_dir = os.getcwd()
         os.chdir(install_dir)
         
-        # Fetch latest changes
-        print_info("Fetching latest changes...")
+        # Check if there are local uncommitted changes
+        print_info("Checking for local changes...")
+        local_changes = run_command("git status --porcelain", shell=True, capture_output=True, check=False)
+        
+        if local_changes.strip():
+            print_info("Local changes detected. Stashing them before update...")
+            run_command("git stash", shell=True, check=False)
+            had_local_changes = True
+        else:
+            had_local_changes = False
+        
+        # Fetch latest changes from remote
+        print_info("Fetching latest changes from GitHub...")
         run_command("git fetch origin", shell=True, check=True)
         
+        # Get current branch
+        current_branch = run_command("git branch --show-current", shell=True, capture_output=True, check=True)
+        if not current_branch:
+            current_branch = "main"
+        
         # Check if updates are available
+        print_info("Comparing with remote version...")
         status = run_command("git status -uno", shell=True, capture_output=True, check=False)
         
-        if "Your branch is behind" in status:
-            print_info("Updates are available. Pulling changes...")
-            run_command("git pull origin main", shell=True, check=True)
-            print_success("Repository updated successfully!")
+        if "Your branch is behind" in status or "have diverged" in status:
+            print_info(f"New updates found! Pulling latest changes from {current_branch}...")
+            
+            try:
+                # Pull with rebase to avoid merge commits
+                run_command(f"git pull --rebase origin {current_branch}", shell=True, check=True)
+                print_success("✓ Repository updated to latest version!")
+                print_info("New features and fixes have been applied.")
+            except:
+                # If rebase fails, try regular pull
+                print_info("Trying alternative update method...")
+                run_command(f"git pull origin {current_branch}", shell=True, check=True)
+                print_success("✓ Repository updated successfully!")
         else:
-            print_success("Repository is already up to date.")
+            print_success("✓ You already have the latest version.")
+        
+        # Restore local changes if any were stashed
+        if had_local_changes:
+            print_info("Restoring your local changes...")
+            run_command("git stash pop", shell=True, check=False)
         
         os.chdir(original_dir)
         return True
         
     except Exception as e:
-        print_info(f"Could not update repository: {str(e)}")
-        print_info("Continuing with existing version...")
+        print_info(f"Could not check for updates: {str(e)}")
+        print_info("This is not critical. Continuing with current version...")
         try:
             os.chdir(original_dir)
         except:
@@ -531,14 +563,11 @@ def main():
             install_dir = custom_dir
             print_info(f"Using custom location: {install_dir}")
     
-    # Step 4: Clone or update repository
+    # Step 4: Clone repository (if needed)
     if not clone_repository(install_dir):
         print_error("Repository setup failed. Cannot continue.")
         input("\nPress Enter to exit...")
         sys.exit(1)
-    
-    # Try to update if repository already existed
-    update_repository(install_dir)
     
     # Step 5: Upgrade pip
     upgrade_pip()
@@ -551,7 +580,11 @@ def main():
             input("\nPress Enter to exit...")
             sys.exit(1)
     
-    # Step 7: Launch application
+    # Step 7: Check for updates (after dependencies are installed)
+    print("\n" + "="*70)
+    update_repository(install_dir)
+    
+    # Step 8: Launch application
     print("\n" + "="*70)
     print("  Setup Complete! Launching application...")
     print("="*70)
