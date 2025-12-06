@@ -13,6 +13,42 @@ from pathlib import Path
 current_dir = Path(__file__).parent.absolute()
 sys.path.insert(0, str(current_dir))
 
+# Check and install critical dependencies first
+print("TurnIT - Checking dependencies...")
+try:
+    from utils.dependency_checker import check_critical_dependencies, check_and_install_dependencies
+    
+    if not check_critical_dependencies():
+        print("\n" + "="*70)
+        print("MISSING CRITICAL DEPENDENCIES")
+        print("="*70)
+        print("\nSome required packages are missing.")
+        print("Attempting to install them automatically...\n")
+        
+        success, missing = check_and_install_dependencies()
+        
+        if not success:
+            print("\n" + "="*70)
+            print("INSTALLATION FAILED")
+            print("="*70)
+            print("\nPlease install the missing packages manually:")
+            print(f"pip install {' '.join(missing)}")
+            print("\nOr install all requirements:")
+            print("pip install -r requirements.txt")
+            print("\n")
+            input("Press Enter to exit...")
+            sys.exit(1)
+        
+        print("\nRestarting application with new dependencies...")
+        print("="*70 + "\n")
+
+except ImportError as e:
+    print(f"Error checking dependencies: {str(e)}")
+    print("Please ensure you have installed the requirements:")
+    print("pip install -r requirements.txt")
+    input("\nPress Enter to exit...")
+    sys.exit(1)
+
 # Import PySide6 components
 try:
     from PySide6.QtWidgets import QApplication, QMessageBox

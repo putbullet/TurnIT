@@ -12,9 +12,16 @@ Pillow>=10.0.0
 # Audio processing
 pyaudio>=0.2.11
 pyttsx3>=2.90
-
-# Text processing
 sounddevice>=0.4.0
+pygame>=2.5.0
+
+# Text to Speech
+gtts>=2.5.0
+
+# Image processing
+opencv-python>=4.8.0
+easyocr>=1.7.0
+matplotlib>=3.7.0
 
 # System utilities
 requests>=2.31.0
