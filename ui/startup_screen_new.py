@@ -334,17 +334,18 @@ class StartupScreenNew(QMainWindow):
     
     def show_setup_screen(self):
         """Show setup/installation screen"""
-        # For now, just show main menu (setup can be added later)
+        # Show confirmation dialog first
         msg = QMessageBox(self)
         msg.setWindowTitle("First Time Setup")
         msg.setIcon(QMessageBox.Information)
         msg.setText("Welcome to TurnIT!")
         msg.setInformativeText(
-            "First-time setup will download AI models (~2GB).\n\n"
+            "First-time setup will download AI models (~2-3GB).\n\n"
             "This only happens once and enables:\n"
-            "• Speech recognition\n"
-            "• Text-to-speech\n"
-            "• Image analysis\n\n"
+            "• Speech recognition (Whisper)\n"
+            "• Text-to-speech synthesis\n"
+            "• Image analysis (ViT)\n\n"
+            "Download time: 5-10 minutes\n\n"
             "Do you want to continue?"
         )
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
@@ -373,16 +374,27 @@ class StartupScreenNew(QMainWindow):
         result = msg.exec()
         
         if result == QMessageBox.Yes:
-            # Mark setup as complete and show main menu
-            cache_dir = Path(__file__).parent.parent / "cache"
-            cache_dir.mkdir(exist_ok=True)
-            setup_status_file = cache_dir / "setup_status.json"
-            
-            import json
-            with open(setup_status_file, 'w') as f:
-                json.dump({"setup_complete": True}, f)
-            
-            self.show_main_menu()
+            # Show setup dialog with real progress
+            try:
+                from ui.setup_dialog import SetupDialog
+                
+                setup_dialog = SetupDialog(self.app_setup, self)
+                result = setup_dialog.exec()
+                
+                if result == QMessageBox.Accepted:
+                    # Setup successful, show main menu
+                    self.show_main_menu()
+                else:
+                    # Setup cancelled or failed
+                    logger.info("Setup cancelled by user")
+                    
+            except Exception as e:
+                logger.error(f"Setup error: {str(e)}")
+                QMessageBox.critical(
+                    self,
+                    "Setup Error",
+                    f"Failed to run setup:\n{str(e)}"
+                )
     
     def show_main_menu(self):
         """Show main menu window"""

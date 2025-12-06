@@ -27,16 +27,10 @@ class AppSetup:
         # Model configurations
         self.models_config = {
             "whisper": {
-                "name": "openai/whisper-large-v3",
+                "name": "openai/whisper-small",  # Use small model for better compatibility
                 "path": self.models_dir / "whisper",
                 "type": "speech_recognition",
-                "size_gb": 3.1
-            },
-            "qwen_audio": {
-                "name": "Qwen/Qwen2-Audio-7B-Instruct",
-                "path": self.models_dir / "qwen_audio",
-                "type": "speech_recognition_fallback",
-                "size_gb": 14.5
+                "size_gb": 0.5  # Small model is much smaller
             },
             "vit": {
                 "name": "google/vit-base-patch16-224-in21k",
@@ -163,6 +157,9 @@ class AppSetup:
         try:
             self.logger.info(f"Downloading model: {model_name}")
             
+            if progress_callback:
+                progress_callback(f"Starting download: {model_name}")
+            
             # Import transformers here to ensure it's installed
             from transformers import AutoConfig, AutoModel, AutoProcessor
             from transformers import AutoModelForSpeechSeq2Seq, AutoImageProcessor
@@ -172,59 +169,68 @@ class AppSetup:
             
             # Download based on model type
             if model_key == "whisper":
+                if progress_callback:
+                    progress_callback(f"Downloading Whisper processor...")
+                
                 # Download Whisper model
                 processor = AutoProcessor.from_pretrained(
                     model_name, 
                     cache_dir=str(model_path)
                 )
+                
+                if progress_callback:
+                    progress_callback(f"Downloading Whisper model weights...")
+                
                 model = AutoModelForSpeechSeq2Seq.from_pretrained(
                     model_name, 
-                    cache_dir=str(model_path)
+                    cache_dir=str(model_path),
+                    torch_dtype="auto",  # Let it decide float type
+                    low_cpu_mem_usage=True,
+                    use_safetensors=True
                 )
                 
-                # Save locally
-                processor.save_pretrained(str(model_path))
-                model.save_pretrained(str(model_path))
+                if progress_callback:
+                    progress_callback(f"Saving Whisper model locally...")
                 
-            elif model_key == "qwen_audio":
-                # Download Qwen Audio model
-                processor = AutoProcessor.from_pretrained(
-                    model_name, 
-                    cache_dir=str(model_path)
-                )
-                # Note: This is a large model, might need special handling
-                model = AutoModel.from_pretrained(
-                    model_name, 
-                    cache_dir=str(model_path)
-                )
-                
-                # Save locally
+                # Save locally for offline use
                 processor.save_pretrained(str(model_path))
                 model.save_pretrained(str(model_path))
                 
             elif model_key == "vit":
-                # Download ViT model
+                if progress_callback:
+                    progress_callback(f"Downloading ViT processor...")
+                
+                # Download ViT model for image analysis
                 processor = AutoImageProcessor.from_pretrained(
                     model_name, 
                     cache_dir=str(model_path)
                 )
+                
+                if progress_callback:
+                    progress_callback(f"Downloading ViT model weights...")
+                
                 model = AutoModel.from_pretrained(
                     model_name, 
                     cache_dir=str(model_path)
                 )
                 
-                # Save locally
+                if progress_callback:
+                    progress_callback(f"Saving ViT model locally...")
+                
+                # Save locally for offline use
                 processor.save_pretrained(str(model_path))
                 model.save_pretrained(str(model_path))
             
             if progress_callback:
-                progress_callback(f"Downloaded {model_name} successfully")
+                progress_callback(f"✓ {model_name} downloaded successfully")
             
             self.logger.info(f"Successfully downloaded {model_name}")
             return True
             
         except Exception as e:
             self.logger.error(f"Error downloading {model_name}: {e}")
+            if progress_callback:
+                progress_callback(f"✗ Error downloading {model_name}: {str(e)}")
             return False
     
     def download_all_models(self, progress_callback=None) -> bool:
