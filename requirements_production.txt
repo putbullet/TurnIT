@@ -1,0 +1,39 @@
+# TurnIT Production Requirements
+# Locked versions for reproducible builds
+
+# Core GUI Framework
+PySide6==6.10.1
+
+# AI/ML Models
+torch==2.5.1
+transformers==4.48.0
+openai-whisper==20240930
+easyocr==1.7.2
+
+# Image Processing
+pillow==11.0.0
+opencv-python==4.10.0.84
+matplotlib==3.10.0
+
+# Audio Processing
+sounddevice==0.5.1
+pyaudio==0.2.14
+librosa==0.10.2.post1
+numpy==2.2.1
+
+# Text-to-Speech
+gTTS==2.5.4
+pyttsx3==2.99
+pygame==2.6.1
+
+# Utilities
+requests==2.32.3
+certifi==2024.12.14
+
+# Build Tools (for creating executable)
+pyinstaller==6.11.1
+
+# Development Tools (optional, comment out for production)
+# pytest==8.3.4
+# black==24.10.0
+# pylint==3.3.2

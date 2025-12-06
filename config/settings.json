@@ -1,0 +1,22 @@
+{
+  "language": "ar",
+  "theme": "dark",
+  "audio": {
+    "default_input_device": "auto",
+    "default_output_device": "auto",
+    "sample_rate": 16000,
+    "buffer_size": 1024
+  },
+  "ai": {
+    "whisper_model": "openai/whisper-large-v3",
+    "vit_model": "google/vit-base-patch16-224",
+    "use_gpu": true,
+    "cache_models": true
+  },
+  "ui": {
+    "window_opacity": 1.0,
+    "show_animations": true,
+    "auto_save": true,
+    "confirm_exit": true
+  }
+}

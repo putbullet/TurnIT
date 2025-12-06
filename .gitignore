@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Cache
+cache/
+*.cache
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+temp_*.mp3
+temp_*.wav
+*.tmp
+transcription.txt
+
+# Database
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Models (these are large - users will download via bootstrapper)
+models/
+
+# Build artifacts
+build/
+dist/
+
+# Migration scripts (not needed in repo)
+activate_new_venv.ps1
+use_new_venv.bat
+VENV_MIGRATION_README.md
+requirements_migration.txt
+powershell_profile_addition.ps1

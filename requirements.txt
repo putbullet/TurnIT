@@ -1,0 +1,27 @@
+# Core GUI framework
+PySide6>=6.6.0
+
+# AI/ML frameworks
+torch>=2.0.0
+transformers>=4.35.0
+librosa>=0.10.0
+soundfile>=0.12.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Audio processing
+pyaudio>=0.2.11
+pyttsx3>=2.90
+
+# Text processing
+sounddevice>=0.4.0
+
+# System utilities
+requests>=2.31.0
+packaging>=23.0
+
+# Progress tracking
+tqdm>=4.65.0
+
+# Development and packaging
+pyinstaller>=6.0.0
