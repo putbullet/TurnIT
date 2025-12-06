@@ -310,47 +310,6 @@ class ImageProcessor:
         except Exception as e:
             logger.error(f"OCR extraction failed: {str(e)}")
             return None
-                        text = pytesseract.image_to_string(pil_image)
-                        
-                        # Get detailed data
-                        data = pytesseract.image_to_data(pil_image, output_type=pytesseract.Output.DICT)
-                        
-                        # Filter confident text
-                        confident_words = []
-                        for i, conf in enumerate(data['conf']):
-                            if int(conf) > 30:  # Confidence threshold
-                                word = data['text'][i].strip()
-                                if word:
-                                    confident_words.append(word)
-                        
-                        ocr_results['tesseract'] = {
-                            'text': text.strip(),
-                            'confident_words': confident_words,
-                            'total_words': len(confident_words)
-                        }
-                        
-                except Exception as e:
-                    logger.warning(f"Tesseract failed: {str(e)}")
-                    ocr_results['tesseract'] = {'text': '', 'error': str(e)}
-            
-            # Combine results
-            if ocr_results:
-                combined_text = ""
-                if 'easyocr' in ocr_results and ocr_results['easyocr'].get('text'):
-                    combined_text = ocr_results['easyocr']['text']
-                elif 'tesseract' in ocr_results and ocr_results['tesseract'].get('text'):
-                    combined_text = ocr_results['tesseract']['text']
-                
-                ocr_results['combined'] = {
-                    'text': combined_text,
-                    'has_text': bool(combined_text.strip())
-                }
-            
-            return ocr_results
-            
-        except Exception as e:
-            logger.error(f"OCR extraction failed: {str(e)}")
-            return {'error': str(e), 'combined': {'text': '', 'has_text': False}}
 
 class AnalysisThread(QThread):
     """Thread for handling image analysis"""
