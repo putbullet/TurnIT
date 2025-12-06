@@ -62,8 +62,16 @@ class TTSEngine:
         self.pyttsx_engine = None
         self.init_pyttsx3()
         self.output_file = None
+        self.pygame_available = False
+        
         if pygame is not None:
-            pygame.mixer.init()
+            try:
+                pygame.mixer.init()
+                self.pygame_available = True
+                logger.info("pygame audio playback initialized")
+            except Exception as e:
+                logger.warning(f"pygame mixer initialization failed: {str(e)}")
+                self.pygame_available = False
         else:
             logger.warning("pygame not available - audio playback may not work")
     
@@ -201,6 +209,10 @@ class TTSEngine:
     def play_audio(self, audio_path):
         """Play audio file"""
         try:
+            if pygame is None or pygame.mixer is None:
+                logger.error("pygame not available for audio playback")
+                return False
+            
             pygame.mixer.music.load(audio_path)
             pygame.mixer.music.play()
             return True
@@ -211,13 +223,20 @@ class TTSEngine:
     def stop_audio(self):
         """Stop audio playback"""
         try:
-            pygame.mixer.music.stop()
+            if pygame is not None and pygame.mixer is not None:
+                pygame.mixer.music.stop()
         except Exception as e:
             logger.error(f"Error stopping audio: {str(e)}")
     
     def is_playing(self):
         """Check if audio is playing"""
-        return pygame.mixer.music.get_busy()
+        try:
+            if pygame is None or pygame.mixer is None:
+                return False
+            return pygame.mixer.music.get_busy()
+        except Exception as e:
+            logger.error(f"Error checking playback status: {str(e)}")
+            return False
 
 class SynthesisThread(QThread):
     """Thread for handling speech synthesis"""
@@ -815,6 +834,11 @@ class TextToSpeechWindow(QMainWindow):
         if not self.current_audio_path:
             return
         
+        # Check if pygame is available
+        if not self.tts_engine.pygame_available:
+            self.show_error("Audio playback not available. Please install pygame: pip install pygame")
+            return
+        
         if self.tts_engine.is_playing():
             self.tts_engine.stop_audio()
         
@@ -829,7 +853,7 @@ class TextToSpeechWindow(QMainWindow):
             self.playback_timer.timeout.connect(self.check_playback_status)
             self.playback_timer.start(100)
         else:
-            self.show_error("Failed to play audio")
+            self.show_error("Failed to play audio. The file was generated but cannot be played.")
     
     def stop_audio(self):
         """Stop audio playback"""
@@ -890,8 +914,11 @@ class TextToSpeechWindow(QMainWindow):
         self.status_label.setText("Interface reset")
         self.status_label.setStyleSheet("QLabel { color: #00d4ff; }")
         
-        if self.tts_engine.is_playing():
-            self.tts_engine.stop_audio()
+        try:
+            if self.tts_engine and self.tts_engine.is_playing():
+                self.tts_engine.stop_audio()
+        except Exception as e:
+            logger.error(f"Error stopping audio on reset: {str(e)}")
     
     def show_error(self, message):
         """Show error message"""
@@ -922,8 +949,11 @@ class TextToSpeechWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close event"""
-        if self.tts_engine.is_playing():
-            self.tts_engine.stop_audio()
+        try:
+            if self.tts_engine and self.tts_engine.is_playing():
+                self.tts_engine.stop_audio()
+        except Exception as e:
+            logger.error(f"Error stopping audio on close: {str(e)}")
         
         if self.synthesis_thread and self.synthesis_thread.isRunning():
             self.synthesis_thread.quit()
