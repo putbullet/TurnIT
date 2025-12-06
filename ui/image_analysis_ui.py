@@ -1039,18 +1039,26 @@ class ImageAnalysisWindow(QMainWindow):
         rows.append(["Width", f"{dims['width']} pixels"])
         rows.append(["Height", f"{dims['height']} pixels"])
         rows.append(["Channels", str(dims['channels'])])
-        rows.append(["Total Pixels", f"{features['file_size_pixels']:,}"])
+        rows.append(["Total Pixels", f"{dims.get('total_pixels', dims['width'] * dims['height']):,}"])
         
         # Color statistics
-        color_stats = features['color_stats']
-        rows.append(["Brightness", f"{color_stats['brightness']:.2f}"])
-        rows.append(["Contrast", f"{color_stats['contrast']:.2f}"])
-        rows.append(["Unique Colors", f"{color_stats['unique_colors']:,}"])
+        color_stats = features.get('color_stats', {})
+        if color_stats.get('brightness') is not None:
+            rows.append(["Brightness", f"{color_stats['brightness']:.2f}"])
+        if color_stats.get('contrast') is not None:
+            rows.append(["Contrast", f"{color_stats['contrast']:.2f}"])
+        if color_stats.get('unique_colors') is not None:
+            rows.append(["Unique Colors", f"{color_stats['unique_colors']:,}"])
         
-        if len(color_stats['mean_rgb']) == 3:
+        if color_stats.get('mean_rgb') and len(color_stats['mean_rgb']) == 3:
             rows.append(["Mean Red", f"{color_stats['mean_rgb'][0]:.2f}"])
             rows.append(["Mean Green", f"{color_stats['mean_rgb'][1]:.2f}"])
             rows.append(["Mean Blue", f"{color_stats['mean_rgb'][2]:.2f}"])
+        elif color_stats.get('mean_red') is not None:
+            # Alternative format
+            rows.append(["Mean Red", f"{color_stats['mean_red']:.2f}"])
+            rows.append(["Mean Green", f"{color_stats['mean_green']:.2f}"])
+            rows.append(["Mean Blue", f"{color_stats['mean_blue']:.2f}"])
         
         table.setRowCount(len(rows))
         for i, (prop, value) in enumerate(rows):
