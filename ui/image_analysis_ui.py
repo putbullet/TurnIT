@@ -1158,71 +1158,84 @@ class ImageAnalysisWindow(QMainWindow):
         
         # Show feature statistics
         try:
-            stats_text = f"Statistics:\n"
-            stats_text += f"Min: {np_local.min(features):.6f}\n"
-            stats_text += f"Max: {np_local.max(features):.6f}\n"
-            stats_text += f"Mean: {np_local.mean(features):.6f}\n"
-            stats_text += f"Std: {np_local.std(features):.6f}"
-            
-            stats_label = QLabel(stats_text)
-            stats_label.setStyleSheet(label.styleSheet())
-            self.results_layout.addWidget(stats_label)
+            # Only show stats if features is an array/tensor, not a dict
+            if not isinstance(features, dict) and hasattr(features, 'shape'):
+                stats_text = f"Statistics:\n"
+                stats_text += f"Min: {np_local.min(features):.6f}\n"
+                stats_text += f"Max: {np_local.max(features):.6f}\n"
+                stats_text += f"Mean: {np_local.mean(features):.6f}\n"
+                stats_text += f"Std: {np_local.std(features):.6f}"
+                
+                stats_label = QLabel(stats_text)
+                stats_label.setStyleSheet(label.styleSheet())
+                self.results_layout.addWidget(stats_label)
         except Exception as e:
             logger.error(f"Failed to compute feature statistics: {str(e)}")
     
     def show_edge_detection(self):
         """Show edge detection results"""
-        if 'edges' not in self.current_results:
-            self.show_no_data("Edge detection not available")
+        if 'edges' not in self.current_results or self.current_results['edges'] is None:
+            self.show_no_data("Edge detection not available.\nInstall opencv-python to enable this feature.")
             return
         
         edges = self.current_results['edges']
         
-        # Convert edges to QPixmap and display
-        # Create a figure with original and edges side by side
-        fig = Figure(figsize=(12, 6))
-        
-        # Original image
-        ax1 = fig.add_subplot(1, 2, 1)
-        ax1.imshow(self.current_results['image_array'])
-        ax1.set_title('Original Image')
-        ax1.axis('off')
-        
-        # Edges
-        ax2 = fig.add_subplot(1, 2, 2)
-        ax2.imshow(edges, cmap='gray')
-        ax2.set_title('Edge Detection (Canny)')
-        ax2.axis('off')
-        
-        fig.tight_layout()
-        
-        # Create canvas widget
-        canvas = FigureCanvas(fig)
-        canvas.setStyleSheet("background: #2a2a2a;")
-        self.results_layout.addWidget(canvas)
-        
-        # Edge statistics
-        edge_pixels = np.sum(edges > 0)
-        total_pixels = edges.shape[0] * edges.shape[1]
-        edge_percentage = (edge_pixels / total_pixels) * 100
-        
-        stats_text = f"Edge Statistics:\n"
-        stats_text += f"Edge Pixels: {edge_pixels:,}\n"
-        stats_text += f"Total Pixels: {total_pixels:,}\n"
-        stats_text += f"Edge Percentage: {edge_percentage:.2f}%"
-        
-        stats_label = QLabel(stats_text)
-        stats_label.setStyleSheet("""
-            QLabel {
-                color: #e0e0e0;
-                font-size: 14px;
-                padding: 15px;
-                background: #2a2a2a;
-                border: 1px solid #404040;
-                border-radius: 8px;
-            }
-        """)
-        self.results_layout.addWidget(stats_label)
+        try:
+            # Dynamic imports
+            from matplotlib.figure import Figure as Figure_local
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas_local
+            import numpy as np_local
+            
+            # Convert edges to QPixmap and display
+            # Create a figure with original and edges side by side
+            fig = Figure_local(figsize=(12, 6))
+            
+            # Original image
+            ax1 = fig.add_subplot(1, 2, 1)
+            ax1.imshow(self.current_results['image_array'])
+            ax1.set_title('Original Image')
+            ax1.axis('off')
+            
+            # Edges
+            ax2 = fig.add_subplot(1, 2, 2)
+            ax2.imshow(edges, cmap='gray')
+            ax2.set_title('Edge Detection (Canny)')
+            ax2.axis('off')
+            
+            fig.tight_layout()
+            
+            # Create canvas widget
+            canvas = FigureCanvas_local(fig)
+            canvas.setStyleSheet("background: #2a2a2a;")
+            self.results_layout.addWidget(canvas)
+            
+            # Edge statistics
+            edge_pixels = np_local.sum(edges > 0)
+            total_pixels = edges.shape[0] * edges.shape[1]
+            edge_percentage = (edge_pixels / total_pixels) * 100
+            
+            stats_text = f"Edge Statistics:\n"
+            stats_text += f"Edge Pixels: {edge_pixels:,}\n"
+            stats_text += f"Total Pixels: {total_pixels:,}\n"
+            stats_text += f"Edge Percentage: {edge_percentage:.2f}%"
+            
+            stats_label = QLabel(stats_text)
+            stats_label.setStyleSheet("""
+                QLabel {
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    padding: 15px;
+                    background: #2a2a2a;
+                    border: 1px solid #404040;
+                    border-radius: 8px;
+                }
+            """)
+            self.results_layout.addWidget(stats_label)
+            
+        except ImportError as e:
+            self.show_no_data(f"Missing dependencies for edge detection display.\nInstall matplotlib: pip install matplotlib\n\nError: {str(e)}")
+        except Exception as e:
+            self.show_no_data(f"Failed to display edge detection: {str(e)}")
     
     def show_color_analysis(self):
         """Show color analysis results"""
